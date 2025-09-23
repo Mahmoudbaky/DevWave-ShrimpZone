@@ -1,0 +1,24 @@
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Home, About, Contact, Meals, Wishlist, Cart, Login } from "./pages";
+import Layout from "./components/Layout";
+
+const App = () => {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/menu" element={<Meals />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/wishlist" element={<Wishlist />} />
+        <Route path="/" element={<Layout />}>
+          <Route path="/" element={<Navigate to="/home" replace />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+};
+
+export default App;
