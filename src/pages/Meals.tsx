@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Heart, ShoppingCart, Search, Plus, Minus } from "lucide-react";
 import { categoriesApi, mealsApi, cartApi, wishlistApi } from "@/lib/api";
 import type { Category, Meal } from "@/lib/types";
+import { toast } from "sonner";
 
 export default function Meals() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -137,7 +138,7 @@ export default function Meals() {
     } catch (error) {
       console.error("Failed to add item to cart:", error);
       // Optionally show an error message to user
-      alert("Failed to add item to cart. Please try again.");
+      toast.error("Sign in to add items to cart");
     } finally {
       setCartLoading(false);
     }

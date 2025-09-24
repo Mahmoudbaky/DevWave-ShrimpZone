@@ -11,6 +11,7 @@ import {
   Signup,
 } from "./pages";
 import Layout from "./components/Layout";
+import { Toaster } from "@/components/ui/sonner";
 
 const App = () => {
   return (
@@ -29,6 +30,7 @@ const App = () => {
           <Route path="/contact" element={<Contact />} />
         </Route>
       </Routes>
+      <Toaster />
     </BrowserRouter>
   );
 };
