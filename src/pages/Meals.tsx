@@ -13,20 +13,70 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Heart, ShoppingCart, Search, Plus, Minus } from "lucide-react";
-import { categoriesApi, mealsApi } from "@/lib/api";
+import { categoriesApi, mealsApi, cartApi, wishlistApi } from "@/lib/api";
 import type { Category, Meal } from "@/lib/types";
 
 export default function Meals() {
   const [searchTerm, setSearchTerm] = useState("");
   const [cart, setCart] = useState<{ [key: string]: number }>({});
+  const [cartLoading, setCartLoading] = useState(false);
   const [wishlist, setWishlist] = useState<string[]>([]);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [meals, setMeals] = useState<Meal[]>([]);
   const [mealsLoading, setMealsLoading] = useState(true);
 
-  console.log(categories);
+  // Fetch cart on component mount
+  useEffect(() => {
+    const fetchCart = async () => {
+      try {
+        setCartLoading(true);
+        const cartResponse = await cartApi.getCart();
+
+        // Convert cart items to our local cart state format
+        const cartState: { [key: string]: number } = {};
+        cartResponse.data.items.forEach((item) => {
+          const productId = item.product?._id || item.meal || "";
+          if (productId) {
+            cartState[productId] = item.quantity;
+          }
+        });
+        setCart(cartState);
+      } catch (error) {
+        console.error("Failed to fetch cart:", error);
+        // If cart fetch fails (e.g., user not logged in), keep empty cart
+        setCart({});
+      } finally {
+        setCartLoading(false);
+      }
+    };
+
+    fetchCart();
+  }, []);
+
+  // Fetch wishlist on component mount
+  useEffect(() => {
+    const fetchWishlist = async () => {
+      try {
+        setWishlistLoading(true);
+        const wishlistResponse = await wishlistApi.getWishlist();
+
+        // Extract product IDs from wishlist items
+        const wishlistIds = wishlistResponse.data.map((item) => item._id);
+        setWishlist(wishlistIds);
+      } catch (error) {
+        console.error("Failed to fetch wishlist:", error);
+        // If wishlist fetch fails (e.g., user not logged in), keep empty wishlist
+        setWishlist([]);
+      } finally {
+        setWishlistLoading(false);
+      }
+    };
+
+    fetchWishlist();
+  }, []);
 
   // Fetch categories on component mount
   useEffect(() => {
@@ -55,7 +105,8 @@ export default function Meals() {
           category: selectedCategory === "all" ? undefined : selectedCategory,
           searchTerm: searchTerm || undefined,
         });
-        setMeals(response.data);
+        console.log(response.products);
+        setMeals(response.products);
       } catch (error) {
         console.error("Failed to fetch meals:", error);
         setMeals([]);
@@ -67,31 +118,87 @@ export default function Meals() {
     fetchMeals();
   }, [searchTerm, selectedCategory]);
 
-  const addToCart = (mealId: string) => {
-    setCart((prev) => ({
-      ...prev,
-      [mealId]: (prev[mealId] || 0) + 1,
-    }));
+  const addToCart = async (mealId: string) => {
+    try {
+      setCartLoading(true);
+      const meal = meals.find((m) => m._id === mealId);
+      if (!meal) return;
+
+      await cartApi.addToCart({
+        productId: mealId,
+        quantity: 1,
+      });
+
+      // Update local cart state to reflect the change
+      setCart((prev) => ({
+        ...prev,
+        [mealId]: (prev[mealId] || 0) + 1,
+      }));
+    } catch (error) {
+      console.error("Failed to add item to cart:", error);
+      // Optionally show an error message to user
+      alert("Failed to add item to cart. Please try again.");
+    } finally {
+      setCartLoading(false);
+    }
   };
 
-  const removeFromCart = (mealId: string) => {
-    setCart((prev) => {
-      const newCart = { ...prev };
-      if (newCart[mealId] > 1) {
-        newCart[mealId]--;
+  const removeFromCart = async (mealId: string) => {
+    try {
+      setCartLoading(true);
+      const currentQuantity = cart[mealId] || 0;
+
+      if (currentQuantity > 1) {
+        // Update quantity
+        await cartApi.updateCart({
+          productId: mealId,
+          quantity: currentQuantity - 1,
+        });
+
+        setCart((prev) => ({
+          ...prev,
+          [mealId]: prev[mealId] - 1,
+        }));
       } else {
-        delete newCart[mealId];
+        // Remove item completely
+        await cartApi.removeFromCart(mealId);
+
+        setCart((prev) => {
+          const newCart = { ...prev };
+          delete newCart[mealId];
+          return newCart;
+        });
       }
-      return newCart;
-    });
+    } catch (error) {
+      console.error("Failed to remove item from cart:", error);
+      alert("Failed to update cart. Please try again.");
+    } finally {
+      setCartLoading(false);
+    }
   };
 
-  const toggleWishlist = (mealId: string) => {
-    setWishlist((prev) =>
-      prev.includes(mealId)
-        ? prev.filter((id) => id !== mealId)
-        : [...prev, mealId]
-    );
+  const toggleWishlist = async (mealId: string) => {
+    try {
+      setWishlistLoading(true);
+      const isInWishlist = wishlist.includes(mealId);
+
+      if (isInWishlist) {
+        // Remove from wishlist
+        await wishlistApi.removeFromWishlist(mealId);
+        setWishlist((prev) => prev.filter((id) => id !== mealId));
+      } else {
+        // Add to wishlist
+        await wishlistApi.addToWishlist({
+          productId: mealId,
+        });
+        setWishlist((prev) => [...prev, mealId]);
+      }
+    } catch (error) {
+      console.error("Failed to update wishlist:", error);
+      alert("Failed to update wishlist. Please try again.");
+    } finally {
+      setWishlistLoading(false);
+    }
   };
 
   const getTotalItems = () => {
@@ -111,7 +218,7 @@ export default function Meals() {
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-5">
+            <a href="/" className="flex items-center gap-5">
               <img
                 src="/images/logo.png"
                 alt="Shrimp Zone Logo"
@@ -120,7 +227,7 @@ export default function Meals() {
               <h1 className="text-2xl font-bold text-foreground">
                 {"Shrimp Zone"}
               </h1>
-            </div>
+            </a>
 
             {/* Search Bar */}
             <div className="flex-1 max-w-md relative">
@@ -276,6 +383,7 @@ export default function Meals() {
                       size="sm"
                       className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm hover:bg-background/90"
                       onClick={() => toggleWishlist(meal._id)}
+                      disabled={wishlistLoading}
                     >
                       <Heart
                         className={`h-4 w-4 ${
@@ -321,6 +429,7 @@ export default function Meals() {
                           variant="outline"
                           size="sm"
                           onClick={() => removeFromCart(meal._id)}
+                          disabled={cartLoading}
                           className="h-8 w-8 p-0"
                         >
                           <Minus className="h-3 w-3" />
@@ -332,6 +441,7 @@ export default function Meals() {
                           variant="outline"
                           size="sm"
                           onClick={() => addToCart(meal._id)}
+                          disabled={cartLoading}
                           className="h-8 w-8 p-0"
                         >
                           <Plus className="h-3 w-3" />
@@ -340,11 +450,12 @@ export default function Meals() {
                     ) : (
                       <Button
                         onClick={() => addToCart(meal._id)}
+                        disabled={cartLoading}
                         className="flex-1"
                         size="sm"
                       >
                         <ShoppingCart className="h-4 w-4 mr-2" />
-                        Add to Cart
+                        {cartLoading ? "Adding..." : "Add to Cart"}
                       </Button>
                     )}
                   </CardFooter>

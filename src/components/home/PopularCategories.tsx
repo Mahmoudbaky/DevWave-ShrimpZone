@@ -43,7 +43,7 @@ const PopularCategories = () => {
               </div>
               <div>
                 <h3 className="text-lg font-semibold mt-2">{category.name}</h3>
-                <span>{category.mealCount}</span>
+                <span>{category.mealCount} Meals</span>
               </div>
             </div>
           ))}

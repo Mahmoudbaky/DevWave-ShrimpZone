@@ -1,5 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { Home, About, Contact, Meals, Wishlist, Cart, Login } from "./pages";
+import {
+  Home,
+  About,
+  Contact,
+  Meals,
+  Wishlist,
+  Cart,
+  Login,
+  Order,
+} from "./pages";
 import Layout from "./components/Layout";
 
 const App = () => {
@@ -9,6 +18,7 @@ const App = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/menu" element={<Meals />} />
         <Route path="/cart" element={<Cart />} />
+        <Route path="/order" element={<Order />} />
         <Route path="/wishlist" element={<Wishlist />} />
         <Route path="/" element={<Layout />}>
           <Route path="/" element={<Navigate to="/home" replace />} />

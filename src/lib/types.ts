@@ -34,7 +34,7 @@ export interface Meal {
 
 export interface MealsFilterApiResponse {
   success: boolean;
-  data: Meal[];
+  products: Meal[];
   total: number;
   page: number;
   pages: number;
@@ -77,4 +77,78 @@ export interface OtpVerificationResponse {
   message: string;
   token: string;
   user: User;
+}
+
+// Cart interfaces
+export interface CartItem {
+  _id: string;
+  meal?: string;
+  product?: {
+    _id: string;
+    name: string;
+    price: number;
+  };
+  quantity: number;
+  price: number;
+}
+
+export interface Cart {
+  _id: string;
+  user: string;
+  items: CartItem[];
+  totalAmount: number;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface CartApiResponse {
+  success: boolean;
+  message: string;
+  data: Cart;
+}
+
+export interface AddToCartRequest {
+  productId: string;
+  quantity: number;
+}
+
+export interface UpdateCartRequest {
+  productId: string;
+  quantity: number;
+}
+
+// Wishlist interfaces
+export interface WishlistItem {
+  _id: string;
+  name: string;
+  brand: string;
+  description: string;
+  aboutItem: string[];
+  price: number;
+  category: string;
+  stock: number;
+  deliveryDate: string;
+  discount: number;
+  saleRate: number;
+  images: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface WishlistApiResponse {
+  success: boolean;
+  message: string;
+  data: WishlistItem[];
+}
+
+export interface AddToWishlistRequest {
+  productId: string;
+}
+
+export interface WishlistActionResponse {
+  success: boolean;
+  message: string;
 }

@@ -9,122 +9,76 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Heart, ShoppingCart, Trash2 } from "lucide-react";
-
-interface Meal {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  image: string;
-  category: string;
-  rating: number;
-}
-
-const sampleMeals: Meal[] = [
-  {
-    id: 1,
-    name: "Grilled Salmon Bowl",
-    description:
-      "Fresh Atlantic salmon with quinoa, avocado, and seasonal vegetables",
-    price: 18.99,
-    image: "/grilled-salmon-bowl-with-quinoa-and-vegetables.jpg",
-    category: "Healthy",
-    rating: 4.8,
-  },
-  {
-    id: 2,
-    name: "Truffle Mushroom Pasta",
-    description:
-      "Handmade pasta with wild mushrooms, truffle oil, and parmesan",
-    price: 22.5,
-    image: "/truffle-mushroom-pasta-with-parmesan.jpg",
-    category: "Italian",
-    rating: 4.9,
-  },
-  {
-    id: 3,
-    name: "Korean BBQ Tacos",
-    description: "Marinated beef bulgogi with kimchi slaw and gochujang aioli",
-    price: 15.99,
-    image: "/korean-bbq-tacos-with-kimchi.jpg",
-    category: "Fusion",
-    rating: 4.7,
-  },
-  {
-    id: 4,
-    name: "Mediterranean Chicken",
-    description:
-      "Herb-crusted chicken breast with roasted vegetables and tzatziki",
-    price: 19.99,
-    image: "/mediterranean-chicken-with-roasted-vegetables.jpg",
-    category: "Mediterranean",
-    rating: 4.6,
-  },
-  {
-    id: 5,
-    name: "Vegan Buddha Bowl",
-    description: "Quinoa, roasted chickpeas, sweet potato, and tahini dressing",
-    price: 16.99,
-    image: "/vegan-buddha-bowl-with-quinoa-and-chickpeas.jpg",
-    category: "Vegan",
-    rating: 4.5,
-  },
-  {
-    id: 6,
-    name: "Beef Burger Deluxe",
-    description: "Wagyu beef patty with aged cheddar, bacon, and truffle fries",
-    price: 24.99,
-    image: "/gourmet-beef-burger-with-truffle-fries.jpg",
-    category: "American",
-    rating: 4.8,
-  },
-];
+import { ArrowLeft, Heart, ShoppingCart, Trash2, Loader2 } from "lucide-react";
+import { wishlistApi, cartApi } from "@/lib/api";
+import type { WishlistItem } from "@/lib/types";
 
 export default function Wishlist() {
-  const [wishlist, setWishlist] = useState<number[]>([]);
-  const [cart, setCart] = useState<{ [key: number]: number }>({});
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isOperationLoading, setIsOperationLoading] = useState<string | null>(
+    null
+  );
 
-  // Load wishlist and cart from localStorage on mount
+  // Load wishlist from API on mount
   useEffect(() => {
-    const savedWishlist = localStorage.getItem("wishlist");
-    const savedCart = localStorage.getItem("cart");
-    if (savedWishlist) {
-      setWishlist(JSON.parse(savedWishlist));
-    }
-    if (savedCart) {
-      setCart(JSON.parse(savedCart));
-    }
+    fetchWishlist();
   }, []);
 
-  // Save wishlist to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem("wishlist", JSON.stringify(wishlist));
-  }, [wishlist]);
-
-  // Save cart to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem("cart", JSON.stringify(cart));
-  }, [cart]);
-
-  const removeFromWishlist = (mealId: number) => {
-    setWishlist((prev) => prev.filter((id) => id !== mealId));
+  const fetchWishlist = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await wishlistApi.getWishlist();
+      setWishlistItems(response.data);
+    } catch (error) {
+      console.error("Error fetching wishlist:", error);
+      setError("Failed to load wishlist. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const addToCart = (mealId: number) => {
-    setCart((prev) => ({
-      ...prev,
-      [mealId]: (prev[mealId] || 0) + 1,
-    }));
+  const removeFromWishlist = async (productId: string) => {
+    try {
+      setIsOperationLoading(productId);
+      await wishlistApi.removeFromWishlist(productId);
+      // Remove from local state
+      setWishlistItems((prev) => prev.filter((item) => item._id !== productId));
+    } catch (error) {
+      console.error("Error removing from wishlist:", error);
+      setError("Failed to remove item from wishlist.");
+    } finally {
+      setIsOperationLoading(null);
+    }
   };
 
-  const clearWishlist = () => {
-    setWishlist([]);
+  const addToCart = async (productId: string) => {
+    try {
+      setIsOperationLoading(`cart-${productId}`);
+      await cartApi.addToCart({ productId, quantity: 1 });
+      // You could show a success message here
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      setError("Failed to add item to cart.");
+    } finally {
+      setIsOperationLoading(null);
+    }
   };
 
-  const wishlistItems = wishlist
-    .map((mealId) => sampleMeals.find((meal) => meal.id === mealId))
-    .filter(Boolean);
+  const clearWishlist = async () => {
+    try {
+      setIsOperationLoading("clear");
+      await wishlistApi.clearWishlist();
+      setWishlistItems([]);
+    } catch (error) {
+      console.error("Error clearing wishlist:", error);
+      setError("Failed to clear wishlist.");
+    } finally {
+      setIsOperationLoading(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -136,7 +90,7 @@ export default function Wishlist() {
               Your Wishlist
             </h1>
             <Button variant="ghost" size="sm" asChild>
-              <a href="/">
+              <a href="/menu">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Menu
               </a>
@@ -147,7 +101,28 @@ export default function Wishlist() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        {sampleMeals.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-16">
+            <Loader2 className="h-16 w-16 mx-auto text-muted-foreground mb-4 animate-spin" />
+            <h2 className="text-2xl font-semibold mb-2">Loading wishlist...</h2>
+          </div>
+        ) : error ? (
+          <div className="text-center py-16">
+            <Heart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+            <h2 className="text-2xl font-semibold mb-2">
+              Please log in to access your wishlist
+            </h2>
+            <p className="text-muted-foreground mb-6">
+              You need to be logged in to save and view your favorite meals.
+            </p>
+            <Button asChild className="mb-4 mr-4">
+              <a href="/login">Login to Continue</a>
+            </Button>
+            <Button variant="outline" onClick={fetchWishlist}>
+              Try Again
+            </Button>
+          </div>
+        ) : wishlistItems.length === 0 ? (
           <div className="text-center py-16">
             <Heart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
             <h2 className="text-2xl font-semibold mb-2">
@@ -166,78 +141,120 @@ export default function Wishlist() {
               <h2 className="text-xl font-semibold">
                 Saved Items ({wishlistItems.length})
               </h2>
-              <Button variant="outline" size="sm" onClick={clearWishlist}>
-                <Trash2 className="h-4 w-4 mr-2" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearWishlist}
+                disabled={isOperationLoading === "clear"}
+              >
+                {isOperationLoading === "clear" ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
                 Clear Wishlist
               </Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {sampleMeals.map((meal) => {
-                if (!meal) return null;
+              {wishlistItems.map((item) => {
                 return (
                   <Card
-                    key={meal.id}
+                    key={item._id}
                     className="overflow-hidden hover:shadow-lg transition-shadow"
                   >
                     <div className="relative">
-                      <img
-                        src={meal.image || "/placeholder.svg"}
-                        alt={meal.name}
-                        className="w-full h-48 object-cover"
-                      />
+                      {item.images?.[0] ? (
+                        <div className="flex items-center justify-center">
+                          <img
+                            src={item.images?.[0] || "/placeholder.svg"}
+                            alt={item.name}
+                            className="w-48 h-48 "
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center bg-muted h-48">
+                          <span className="text-muted-foreground">
+                            No Image
+                          </span>
+                        </div>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
                         className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm hover:bg-background/90"
-                        onClick={() => removeFromWishlist(meal.id)}
+                        onClick={() => removeFromWishlist(item._id)}
+                        disabled={isOperationLoading === item._id}
                       >
-                        <Heart className="h-4 w-4 fill-current text-accent" />
+                        {isOperationLoading === item._id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Heart className="h-4 w-4 fill-current text-accent" />
+                        )}
                       </Button>
                     </div>
 
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-2">
                         <CardTitle className="text-lg leading-tight">
-                          {meal.name}
+                          {item.name}
                         </CardTitle>
                         <Badge variant="secondary" className="shrink-0">
-                          {meal.category}
+                          {item.brand}
                         </Badge>
                       </div>
                       <CardDescription className="text-sm leading-relaxed">
-                        {meal.description}
+                        {item.description}
                       </CardDescription>
                     </CardHeader>
 
                     <CardContent className="pt-0">
                       <div className="flex items-center justify-between">
                         <span className="text-2xl font-bold text-primary">
-                          ${meal.price.toFixed(2)}
+                          LE {item.price}
                         </span>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <span>⭐</span>
-                          <span>{meal.rating}</span>
-                        </div>
+                        {item.discount > 0 && (
+                          <div className="flex items-center gap-1 text-sm text-green-600">
+                            <span>{item.discount}% off</span>
+                          </div>
+                        )}
                       </div>
+                      {item.stock <= 5 && (
+                        <p className="text-sm text-orange-600 mt-1">
+                          Only {item.stock} left in stock
+                        </p>
+                      )}
                     </CardContent>
 
                     <CardFooter className="pt-0 gap-2">
                       <Button
-                        onClick={() => addToCart(meal.id)}
+                        onClick={() => addToCart(item._id)}
                         className="flex-1"
                         size="sm"
+                        disabled={
+                          isOperationLoading === `cart-${item._id}` ||
+                          item.stock === 0
+                        }
                       >
-                        <ShoppingCart className="h-4 w-4 mr-2" />
-                        Add to Cart
+                        {isOperationLoading === `cart-${item._id}` ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <ShoppingCart className="h-4 w-4 mr-2" />
+                        )}
+                        {item.stock === 0 ? "Out of Stock" : "Add to Cart"}
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => removeFromWishlist(meal.id)}
+                        onClick={() => removeFromWishlist(item._id)}
                         className="text-destructive hover:text-destructive"
+                        disabled={isOperationLoading === item._id}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        {isOperationLoading === item._id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
                       </Button>
                     </CardFooter>
                   </Card>

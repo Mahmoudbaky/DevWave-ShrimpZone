@@ -1,134 +1,141 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Minus, Trash2, ShoppingCart } from "lucide-react";
-
-interface Meal {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  image: string;
-  category: string;
-  rating: number;
-}
-
-const sampleMeals: Meal[] = [
-  {
-    id: 1,
-    name: "Grilled Salmon Bowl",
-    description:
-      "Fresh Atlantic salmon with quinoa, avocado, and seasonal vegetables",
-    price: 18.99,
-    image: "/grilled-salmon-bowl-with-quinoa-and-vegetables.jpg",
-    category: "Healthy",
-    rating: 4.8,
-  },
-  {
-    id: 2,
-    name: "Truffle Mushroom Pasta",
-    description:
-      "Handmade pasta with wild mushrooms, truffle oil, and parmesan",
-    price: 22.5,
-    image: "/truffle-mushroom-pasta-with-parmesan.jpg",
-    category: "Italian",
-    rating: 4.9,
-  },
-  {
-    id: 3,
-    name: "Korean BBQ Tacos",
-    description: "Marinated beef bulgogi with kimchi slaw and gochujang aioli",
-    price: 15.99,
-    image: "/korean-bbq-tacos-with-kimchi.jpg",
-    category: "Fusion",
-    rating: 4.7,
-  },
-  {
-    id: 4,
-    name: "Mediterranean Chicken",
-    description:
-      "Herb-crusted chicken breast with roasted vegetables and tzatziki",
-    price: 19.99,
-    image: "/mediterranean-chicken-with-roasted-vegetables.jpg",
-    category: "Mediterranean",
-    rating: 4.6,
-  },
-  {
-    id: 5,
-    name: "Vegan Buddha Bowl",
-    description: "Quinoa, roasted chickpeas, sweet potato, and tahini dressing",
-    price: 16.99,
-    image: "/vegan-buddha-bowl-with-quinoa-and-chickpeas.jpg",
-    category: "Vegan",
-    rating: 4.5,
-  },
-  {
-    id: 6,
-    name: "Beef Burger Deluxe",
-    description: "Wagyu beef patty with aged cheddar, bacon, and truffle fries",
-    price: 24.99,
-    image: "/gourmet-beef-burger-with-truffle-fries.jpg",
-    category: "American",
-    rating: 4.8,
-  },
-];
+import {
+  ArrowLeft,
+  Plus,
+  Minus,
+  Trash2,
+  ShoppingCart,
+  Loader2,
+} from "lucide-react";
+import { cartApi } from "@/lib/api";
+import type { Cart, CartItem } from "@/lib/types";
 
 export default function Cart() {
-  const [cart, setCart] = useState<{ [key: number]: number }>({});
+  const [cart, setCart] = useState<Cart | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [updating, setUpdating] = useState<string | null>(null);
 
-  // Load cart from localStorage on mount
+  // Load cart data on component mount
   useEffect(() => {
-    const savedCart = localStorage.getItem("cart");
-    if (savedCart) {
-      setCart(JSON.parse(savedCart));
-    }
+    loadCart();
   }, []);
 
-  // Save cart to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem("cart", JSON.stringify(cart));
-  }, [cart]);
-
-  const updateQuantity = (mealId: number, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      removeFromCart(mealId);
-    } else {
-      setCart((prev) => ({
-        ...prev,
-        [mealId]: newQuantity,
-      }));
+  const loadCart = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await cartApi.getCart();
+      setCart(response.data);
+    } catch (error) {
+      console.error("Error loading cart:", error);
+      setError(error instanceof Error ? error.message : "Failed to load cart");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const removeFromCart = (mealId: number) => {
-    setCart((prev) => {
-      const newCart = { ...prev };
-      delete newCart[mealId];
-      return newCart;
-    });
+  const updateQuantity = async (productId: string, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      await removeFromCart(productId);
+      return;
+    }
+
+    try {
+      setUpdating(productId);
+      const response = await cartApi.updateCart({
+        productId,
+        quantity: newQuantity,
+      });
+      setCart(response.data);
+    } catch (error) {
+      console.error("Error updating quantity:", error);
+      setError("Failed to update item quantity");
+    } finally {
+      setUpdating(null);
+    }
   };
 
-  const clearCart = () => {
-    setCart({});
+  const removeFromCart = async (productId: string) => {
+    try {
+      setUpdating(productId);
+      const response = await cartApi.removeFromCart(productId);
+      setCart(response.data);
+    } catch (error) {
+      console.error("Error removing item:", error);
+      setError("Failed to remove item from cart");
+    } finally {
+      setUpdating(null);
+    }
   };
 
-  const cartItems = Object.entries(cart)
-    .map(([mealId, quantity]) => {
-      const meal = sampleMeals.find((m) => m.id === Number.parseInt(mealId));
-      return meal ? { meal, quantity } : null;
-    })
-    .filter(Boolean);
+  const clearCart = async () => {
+    try {
+      setLoading(true);
+      const response = await cartApi.clearCart();
+      setCart(response.data);
+    } catch (error) {
+      console.error("Error clearing cart:", error);
+      setError("Failed to clear cart");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getTotalPrice = () => {
-    return cartItems.reduce((total, item) => {
-      return total + (item ? item.meal.price * item.quantity : 0);
-    }, 0);
+    return cart?.totalAmount || 0;
   };
 
   const getTotalItems = () => {
-    return Object.values(cart).reduce((sum, count) => sum + count, 0);
+    return cart?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
   };
+
+  const getItemPrice = (item: CartItem) => {
+    return item.price * item.quantity;
+  };
+
+  const getDisplayName = (item: CartItem) => {
+    return item.product?.name || `Product ${item.meal || item._id}`;
+  };
+
+  const getDisplayPrice = (item: CartItem) => {
+    return item.product?.price || item.price;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading your cart...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <ShoppingCart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+          <h2 className="text-2xl font-semibold mb-2">
+            Please log in to access your cart
+          </h2>
+          <p className="text-muted-foreground mb-6">
+            You need to be logged in to view and manage your cart items.
+          </p>
+          <Button asChild className="mb-4 mr-4">
+            <a href="/login">Login to Continue</a>
+          </Button>
+          <Button variant="outline" onClick={loadCart}>
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -149,7 +156,7 @@ export default function Cart() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        {cartItems.length === 0 ? (
+        {!cart || cart.items.length === 0 ? (
           <div className="text-center py-16">
             <ShoppingCart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
             <h2 className="text-2xl font-semibold mb-2">Your cart is empty</h2>
@@ -168,42 +175,58 @@ export default function Cart() {
                 <h2 className="text-xl font-semibold">
                   Cart Items ({getTotalItems()})
                 </h2>
-                <Button variant="outline" size="sm" onClick={clearCart}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearCart}
+                  disabled={loading}
+                >
                   <Trash2 className="h-4 w-4 mr-2" />
                   Clear Cart
                 </Button>
               </div>
 
-              {cartItems.map((item) => {
-                if (!item) return null;
-                const { meal, quantity } = item;
+              {cart.items.map((item) => {
+                const itemId = item.product?._id || item.meal || item._id;
+                const isUpdating = updating === itemId;
+
                 return (
-                  <Card key={meal.id}>
+                  <Card key={item._id}>
                     <CardContent className="p-4">
                       <div className="flex gap-4">
-                        <img
-                          src={meal.image || "/placeholder.svg"}
-                          alt={meal.name}
-                          className="w-20 h-20 object-cover rounded-md"
-                        />
+                        <div className="w-20 h-20 bg-gray-200 rounded-md flex items-center justify-center">
+                          {(item.product as any)?.images?.[0] ? (
+                            <img
+                              src={(item.product as any).images[0]}
+                              alt={item.product?.name}
+                              className="max-w-full max-h-full"
+                            />
+                          ) : (
+                            <div>no image</div>
+                          )}
+                        </div>
                         <div className="flex-1">
                           <div className="flex items-start justify-between">
                             <div>
-                              <h3 className="font-semibold">{meal.name}</h3>
-                              <p className="text-sm text-muted-foreground line-clamp-2">
-                                {meal.description}
+                              <h3 className="font-semibold">
+                                {getDisplayName(item)}
+                              </h3>
+                              <p className="text-sm text-muted-foreground">
+                                ${getDisplayPrice(item).toFixed(2)} each
                               </p>
-                              <Badge variant="secondary" className="mt-1">
-                                {meal.category}
-                              </Badge>
                             </div>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeFromCart(meal.id)}
+                              onClick={() => removeFromCart(itemId)}
+                              disabled={isUpdating}
                               className="text-destructive hover:text-destructive"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              {isUpdating ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
                             </Button>
                           </div>
                           <div className="flex items-center justify-between mt-3">
@@ -212,21 +235,23 @@ export default function Cart() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() =>
-                                  updateQuantity(meal.id, quantity - 1)
+                                  updateQuantity(itemId, item.quantity - 1)
                                 }
+                                disabled={isUpdating}
                                 className="h-8 w-8 p-0"
                               >
                                 <Minus className="h-3 w-3" />
                               </Button>
                               <span className="font-medium min-w-[2rem] text-center">
-                                {quantity}
+                                {item.quantity}
                               </span>
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() =>
-                                  updateQuantity(meal.id, quantity + 1)
+                                  updateQuantity(itemId, item.quantity + 1)
                                 }
+                                disabled={isUpdating}
                                 className="h-8 w-8 p-0"
                               >
                                 <Plus className="h-3 w-3" />
@@ -234,10 +259,7 @@ export default function Cart() {
                             </div>
                             <div className="text-right">
                               <div className="font-semibold">
-                                ${(meal.price * quantity).toFixed(2)}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                ${meal.price.toFixed(2)} each
+                                ${getItemPrice(item).toFixed(2)}
                               </div>
                             </div>
                           </div>
@@ -280,15 +302,15 @@ export default function Cart() {
                       ).toFixed(2)}
                     </span>
                   </div>
-                  <Button className="w-full" size="lg">
-                    Proceed to Checkout
+                  <Button className="w-full" size="lg" asChild>
+                    <a href="/order">Proceed to Checkout</a>
                   </Button>
                   <Button
                     variant="outline"
                     className="w-full bg-transparent"
                     asChild
                   >
-                    <a href="/">Continue Shopping</a>
+                    <a href="/menu">Continue Shopping</a>
                   </Button>
                 </CardContent>
               </Card>

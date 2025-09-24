@@ -49,7 +49,7 @@ export function LoginForm({
         localStorage.setItem("user", JSON.stringify(response.user));
 
         // Redirect to home page or dashboard
-        window.location.href = "/";
+        window.location.href = "/menu";
       } else {
         setError(response.message || "Invalid OTP");
       }
