@@ -7,6 +7,7 @@ import type {
   MealFilterParams,
   LoginResponse,
   OtpVerificationResponse,
+  RegisterResponse,
   CartApiResponse,
   AddToCartRequest,
   UpdateCartRequest,
@@ -77,6 +78,23 @@ export const authApi = {
     } catch (error) {
       console.error("Error during login:", error);
       throw new Error("Failed to send OTP");
+    }
+  },
+
+  register: async (
+    email: string,
+    password: string
+  ): Promise<RegisterResponse> => {
+    try {
+      const response = await api.post<RegisterResponse>("/api/auth/register", {
+        email,
+        password,
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error("Error during registration:", error);
+      throw new Error("Failed to register user");
     }
   },
 

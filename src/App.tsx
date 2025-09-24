@@ -8,6 +8,7 @@ import {
   Cart,
   Login,
   Order,
+  Signup,
 } from "./pages";
 import Layout from "./components/Layout";
 
@@ -16,6 +17,7 @@ const App = () => {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
         <Route path="/menu" element={<Meals />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/order" element={<Order />} />

@@ -35,12 +35,20 @@ const Header = () => {
           </a>
         ))}
       </div>
-      <Button
-        onClick={() => navigate("/login")}
-        className="rounded-full cursor-pointer bg-primary px-6 py-5 text-white font-bold hover:scale-105 transform transition"
-      >
-        Sign In
-      </Button>
+      <div className="flex gap-3">
+        <Button
+          onClick={() => navigate("/signup")}
+          className="rounded-full cursor-pointer bg-transparent border-2 border-primary px-6 py-5 text-primary font-bold hover:scale-105 transform transition hover:bg-primary hover:text-white"
+        >
+          Sign Up
+        </Button>
+        <Button
+          onClick={() => navigate("/login")}
+          className="rounded-full cursor-pointer bg-primary px-6 py-5 text-white font-bold hover:scale-105 transform transition"
+        >
+          Sign In
+        </Button>
+      </div>
     </header>
   );
 };

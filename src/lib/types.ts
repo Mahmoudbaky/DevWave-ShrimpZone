@@ -79,6 +79,16 @@ export interface OtpVerificationResponse {
   user: User;
 }
 
+export interface RegisterRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterResponse {
+  success: boolean;
+  message: string;
+}
+
 // Cart interfaces
 export interface CartItem {
   _id: string;

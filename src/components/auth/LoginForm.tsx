@@ -153,6 +153,15 @@ export function LoginForm({
             Back to Email
           </Button>
         )}
+
+        <div className="text-center text-sm">
+          <span className="text-muted-foreground">
+            {"Don't have an account? "}
+          </span>
+          <a href="/signup" className="text-primary hover:underline">
+            Sign up
+          </a>
+        </div>
       </div>
     </form>
   );

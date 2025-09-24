@@ -25,7 +25,7 @@ const Hero = () => {
                 onClick={() => {
                   navigate("/menu");
                 }}
-                className="py-7 px-7 shadow-sm shadow-primary text-[18px] rounded-full"
+                className="py-7 cursor-pointer px-7 shadow-sm  text-[18px] rounded-full"
               >
                 Explore Menu
               </Button>
