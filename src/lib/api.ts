@@ -151,8 +151,6 @@ export const cartApi = {
     productData: AddToCartRequest
   ): Promise<CartApiResponse> => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
       const token = getAuthToken();
       if (!token) {
         throw new Error("No authentication token found");
