@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,11 +16,11 @@ import { Heart, ShoppingCart, Search, Plus, Minus } from "lucide-react";
 import { categoriesApi, mealsApi, cartApi, wishlistApi } from "@/lib/api";
 import type { Category, Meal } from "@/lib/types";
 import { toast } from "sonner";
+import { useOptimistic } from "react";
 
 export default function Meals() {
   const [searchTerm, setSearchTerm] = useState("");
   const [cart, setCart] = useState<{ [key: string]: number }>({});
-  const [cartLoading, setCartLoading] = useState(false);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [wishlistLoading, setWishlistLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -29,11 +29,32 @@ export default function Meals() {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [mealsLoading, setMealsLoading] = useState(true);
 
+  const [isPending, startTransition] = useTransition();
+
+  const [optimisticCart, optimisticSetCart] = useOptimistic(
+    cart,
+    (curCart, action: { type: "add" | "remove"; mealId: string }) => {
+      const currentQuantity = curCart[action.mealId] || 0;
+
+      if (action.type === "add") {
+        return { ...curCart, [action.mealId]: currentQuantity + 1 };
+      } else if (action.type === "remove") {
+        if (currentQuantity <= 1) {
+          const newCart = { ...curCart };
+          delete newCart[action.mealId];
+          return newCart;
+        } else {
+          return { ...curCart, [action.mealId]: currentQuantity - 1 };
+        }
+      }
+      return curCart;
+    }
+  );
+
   // Fetch cart on component mount
   useEffect(() => {
     const fetchCart = async () => {
       try {
-        setCartLoading(true);
         const cartResponse = await cartApi.getCart();
 
         // Convert cart items to our local cart state format
@@ -49,8 +70,6 @@ export default function Meals() {
         console.error("Failed to fetch cart:", error);
         // If cart fetch fails (e.g., user not logged in), keep empty cart
         setCart({});
-      } finally {
-        setCartLoading(false);
       }
     };
 
@@ -106,7 +125,6 @@ export default function Meals() {
           category: selectedCategory === "all" ? undefined : selectedCategory,
           searchTerm: searchTerm || undefined,
         });
-        console.log(response.products);
         setMeals(response.products);
       } catch (error) {
         console.error("Failed to fetch meals:", error);
@@ -121,60 +139,76 @@ export default function Meals() {
 
   const addToCart = async (mealId: string) => {
     try {
-      setCartLoading(true);
       const meal = meals.find((m) => m._id === mealId);
       if (!meal) return;
 
-      await cartApi.addToCart({
-        productId: mealId,
-        quantity: 1,
-      });
+      // Optimistically update the UI immediately
+      startTransition(async () => {
+        optimisticSetCart({ type: "add", mealId: meal._id });
 
-      // Update local cart state to reflect the change
-      setCart((prev) => ({
-        ...prev,
-        [mealId]: (prev[mealId] || 0) + 1,
-      }));
+        try {
+          // Make the API call
+          await cartApi.addToCart({
+            productId: mealId,
+            quantity: 1,
+          });
+
+          // Only update real state after successful API call
+          setCart((prev) => ({
+            ...prev,
+            [mealId]: (prev[mealId] || 0) + 1,
+          }));
+        } catch (error) {
+          // On error, the optimistic update will automatically revert
+          // because we don't update the real cart state
+          console.error("Failed to add item to cart:", error);
+          toast.error("Sign in to add items to cart");
+        }
+      });
     } catch (error) {
       console.error("Failed to add item to cart:", error);
-      // Optionally show an error message to user
       toast.error("Sign in to add items to cart");
-    } finally {
-      setCartLoading(false);
     }
   };
 
   const removeFromCart = async (mealId: string) => {
     try {
-      setCartLoading(true);
-      const currentQuantity = cart[mealId] || 0;
+      const currentQuantity = optimisticCart[mealId] || 0;
 
-      if (currentQuantity > 1) {
-        // Update quantity
-        await cartApi.updateCart({
-          productId: mealId,
-          quantity: currentQuantity - 1,
-        });
+      // Optimistically update the UI immediately
+      startTransition(async () => {
+        optimisticSetCart({ type: "remove", mealId });
 
-        setCart((prev) => ({
-          ...prev,
-          [mealId]: prev[mealId] - 1,
-        }));
-      } else {
-        // Remove item completely
-        await cartApi.removeFromCart(mealId);
+        try {
+          if (currentQuantity > 1) {
+            // Update quantity
+            await cartApi.updateCart({
+              productId: mealId,
+              quantity: currentQuantity - 1,
+            });
 
-        setCart((prev) => {
-          const newCart = { ...prev };
-          delete newCart[mealId];
-          return newCart;
-        });
-      }
+            setCart((prev) => ({
+              ...prev,
+              [mealId]: prev[mealId] - 1,
+            }));
+          } else {
+            // Remove item completely
+            await cartApi.removeFromCart(mealId);
+
+            setCart((prev) => {
+              const newCart = { ...prev };
+              delete newCart[mealId];
+              return newCart;
+            });
+          }
+        } catch (error) {
+          console.error("Failed to remove item from cart:", error);
+          toast.error("Failed to update cart. Please try again.");
+        }
+      });
     } catch (error) {
       console.error("Failed to remove item from cart:", error);
-      alert("Failed to update cart. Please try again.");
-    } finally {
-      setCartLoading(false);
+      toast.error("Failed to update cart. Please try again.");
     }
   };
 
@@ -203,11 +237,11 @@ export default function Meals() {
   };
 
   const getTotalItems = () => {
-    return Object.values(cart).reduce((sum, count) => sum + count, 0);
+    return Object.values(optimisticCart).reduce((sum, count) => sum + count, 0);
   };
 
   const getTotalPrice = () => {
-    return Object.entries(cart).reduce((total, [mealId, count]) => {
+    return Object.entries(optimisticCart).reduce((total, [mealId, count]) => {
       const meal = meals.find((m) => m._id === mealId);
       return total + (meal ? meal.price * count : 0);
     }, 0);
@@ -424,25 +458,25 @@ export default function Meals() {
                   </CardContent>
 
                   <CardFooter className="pt-0 gap-2">
-                    {cart[meal._id] ? (
+                    {optimisticCart[meal._id] ? (
                       <div className="flex items-center gap-2 flex-1">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => removeFromCart(meal._id)}
-                          disabled={cartLoading}
+                          disabled={isPending}
                           className="h-8 w-8 p-0"
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
                         <span className="font-medium min-w-[2rem] text-center">
-                          {cart[meal._id]}
+                          {optimisticCart[meal._id]}
                         </span>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => addToCart(meal._id)}
-                          disabled={cartLoading}
+                          disabled={isPending}
                           className="h-8 w-8 p-0"
                         >
                           <Plus className="h-3 w-3" />
@@ -451,12 +485,12 @@ export default function Meals() {
                     ) : (
                       <Button
                         onClick={() => addToCart(meal._id)}
-                        disabled={cartLoading}
+                        disabled={isPending}
                         className="flex-1"
                         size="sm"
                       >
                         <ShoppingCart className="h-4 w-4 mr-2" />
-                        {cartLoading ? "Adding..." : "Add to Cart"}
+                        {isPending ? "Adding..." : "Add to Cart"}
                       </Button>
                     )}
                   </CardFooter>
